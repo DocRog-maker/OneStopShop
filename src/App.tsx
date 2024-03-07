@@ -5,13 +5,13 @@ import TextPanel from './TextPanel';
 
 function App() {
   const viewerDiv = useRef<HTMLDivElement>(null);
- const [currentTxt, setCurrentTxt] = useState<string>('');
+  const [currentTxt, setCurrentTxt] = useState<string>('');
 
- //Sanity to check to verify that the value is set
+  //Sanity to check to verify that the value is set
   useEffect(() => {
     console.log('currentTxt VV');
-    console.log({currentTxt});
-  },[currentTxt])
+    console.log({ currentTxt });
+  }, [currentTxt])
 
 
   useEffect(() => {
@@ -34,7 +34,7 @@ function App() {
           Show: {
             // Use an entirely inappropriate icon - fix later
             img: 'icon-view',
-            onClick: async (update:any) => {
+            onClick: async (update: any) => {
               update('Hide');
               const doc = documentViewer.getDocument();
               if (doc) {
@@ -44,7 +44,7 @@ function App() {
                 const rect = new Core.Math.Rect(0, 0, info.width, info.height)
                 const txt = await doc.getTextByPageAndRect(currentPageNum, rect);
                 setCurrentTxt(txt);
-              
+
                 //This opens the element, but doesn't cause a refresh
                 instance.UI.openElements(['customPanel']);
               }
@@ -53,7 +53,7 @@ function App() {
           },
           Hide: {
             img: 'digital_signature_warning',
-            onClick: (update:any) => {
+            onClick: (update: any) => {
               update('Show');
               instance.UI.closeElements(['customPanel']);
               // @ts-ignore comment.
@@ -73,14 +73,14 @@ function App() {
         unmount: () => { },
       });
 
-    //  const z= 'zzz';
+      //  const z= 'zzz';
       instance.UI.addPanel({
         dataElement: 'customPanel',
         location: 'left',
         // @ts-ignore comment.
         icon: 'icon-save',
-          // @ts-ignore comment.
-          render: () =>  <TextPanel props={currentTxt}  />
+        // @ts-ignore comment.
+        render: () => <TextPanel props={currentTxt} />
       })
 
       // @ts-ignore comment.
@@ -104,9 +104,6 @@ function App() {
       });
       // @ts-ignore comment.
       instance.UI.setModularHeaders([topHeader]);
-
-
-
     }
 
     );
