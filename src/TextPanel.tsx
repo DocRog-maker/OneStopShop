@@ -6,6 +6,7 @@ export default  function TextPanel({props}) {
     console.log('currentTxt ^^');
     return (
         <>
+          {console.log('Rendering')}
          {console.log(props)}
          {console.log('^^^^^^^')}
         <div className='textpanel'>
