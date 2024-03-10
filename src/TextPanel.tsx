@@ -4,14 +4,21 @@ export default  function TextPanel({props}) {
   //  console.log(currentTxt);
     console.log(props);
     console.log('currentTxt ^^');
+    const logit=()=>{
+        console.log({ props}); 
+        console.log('-----'); 
+    }
     return (
         <>
           {console.log('Rendering')}
          {console.log(props)}
          {console.log('^^^^^^^')}
-        <div className='textpanel'>
+         {/* <div> */}
+        <div onClick={logit} className='textpanel'>
+        <div onResize={logit} className='textpanel'>
        ' { props}'
         </div>
-      </>
+        </div>
+        </>
     );
 }

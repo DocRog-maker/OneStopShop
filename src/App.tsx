@@ -1,18 +1,9 @@
 import WebViewer from '@pdftron/webviewer';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import './App.css';
-import TextPanel from './TextPanel';
 
 function App() {
   const viewerDiv = useRef<HTMLDivElement>(null);
-  const [currentTxt, setCurrentTxt] = useState<string>('');
-
-  //Sanity to check to verify that the value is set
-  useEffect(() => {
-    console.log('currentTxt VV');
-    console.log({ currentTxt });
-  }, [currentTxt])
-
 
   useEffect(() => {
     WebViewer({
@@ -23,7 +14,9 @@ function App() {
       const { UI, Core } = instance;
       const { documentViewer } = instance.Core;
 
-      // Menu Flyout Button
+      
+      UI.enableFeatures([UI.Feature.FilePicker]);
+
       // @ts-ignore comment.
       const mainMenu = new UI.Components.MainMenu();
 
@@ -32,8 +25,8 @@ function App() {
         initialState: 'Show',
         states: {
           Show: {
-            // Use an entirely inappropriate icon - fix later
-            img: 'icon-view',
+            // There are either prebuilt icons, or you can add one to the public folder and reference it
+            img: '/files/text-contents-icon.svg',
             onClick: async (update: any) => {
               update('Hide');
               const doc = documentViewer.getDocument();
@@ -43,24 +36,41 @@ function App() {
                 const info = doc.getPageInfo(currentPageNum);
                 const rect = new Core.Math.Rect(0, 0, info.width, info.height)
                 const txt = await doc.getTextByPageAndRect(currentPageNum, rect);
-                setCurrentTxt(txt);
 
-                //This opens the element, but doesn't cause a refresh
+                //Add a new panel that contains the text                
+                instance.UI.addPanel({
+                  dataElement: 'customPanel',
+                  location: 'left',
+
+                  // @ts-ignore comment.
+                 render:()=>{
+                  return <div className='custom-panel'>
+                    {txt}
+                  </div>
+                 }
+                })
+
+                //Make the panel visible
                 instance.UI.openElements(['customPanel']);
               }
             },
             title: 'Show',
           },
           Hide: {
-            img: 'digital_signature_warning',
+            img: '/files/close-text-contents-icon.svg',
             onClick: (update: any) => {
               update('Show');
               instance.UI.closeElements(['customPanel']);
+                            
               // @ts-ignore comment.
-              const panelsList = instance.UI.getPanels();
-              //log panels to verify no leak
-              console.log(panelsList);
-              console.log('panelsList');
+              const panelsList= instance.UI.getPanels();
+
+              // Remove the created panel - alternatively you could write code to reuse the panel and update it.
+              // @ts-ignore comment.
+              const newList = panelsList.filter(element=> element._dataElement!='customPanel')
+
+              // @ts-ignore comment.
+              instance.UI.setPanels(newList);
             },
             title: 'Close',
           },
@@ -73,23 +83,14 @@ function App() {
         unmount: () => { },
       });
 
-      //  const z= 'zzz';
-      instance.UI.addPanel({
-        dataElement: 'customPanel',
-        location: 'left',
-        // @ts-ignore comment.
-        icon: 'icon-save',
-        // @ts-ignore comment.
-        render: () => <TextPanel props={currentTxt} />
-      })
-
       // @ts-ignore comment.
       const topHeader = new instance.UI.Components.ModularHeader({
         dataElement: 'default-top-header',
         placement: 'top',
         grow: 0,
         gap: 12,
-        position: 'start',
+        position: 'end',
+        setJustifyContent:('center'),
         stroke: true,
         dimension: {
           paddingTop: 8,
@@ -100,6 +101,7 @@ function App() {
         items: [
           mainMenu,
           myStatefulButton,
+          // you could add many other items if you wish
         ]
       });
       // @ts-ignore comment.
