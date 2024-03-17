@@ -11,8 +11,7 @@ import './App.css';
 //     this.props.documentViewer.addEventListener('pageNumberUpdated', async () => {
 //              // @ts-ignore comment.
 //       const text = await this.props.getTextOnPage();
-//       const txt2 = "Wibble " + text;
-//       this.setState({txt2});
+//       this.setState({text});
 //     }
 //     );
 //   }
@@ -38,61 +37,56 @@ import './App.css';
 //   }
 // }
 
-function App() {
+const App = () => {
   const viewer = useRef<HTMLDivElement>(null);
   // if using a class, equivalent of componentDidMount 
   useEffect(() => {
-    // @ts-ignore comment.
     WebViewer(
       {
         path: '/webviewer/lib',
-        initialDoc: '/files/WebviewerDemoDoc.pdf',
-        licenseKey: 'your_license_key',  // sign up to get a free trial key at https://dev.apryse.com
-         
-        ui: 'beta' // enable Modular UI
+        initialDoc: '/files/PDFTRON_about.pdf',
+        licenseKey: 'your_license_key'  // sign up to get a free trial key at https://dev.apryse.com
       },
-      viewer.current as HTMLDivElement
+      viewer.current as HTMLDivElement,
     ).then((instance) => {
-      console.log("AAAA");
       const { Core } = instance;
       const { documentViewer } = instance.Core;
 
 
-      const getTextOnPage = async () => {
-        const doc = documentViewer.getDocument();
-        if (doc) {
-          const currentPageNum = documentViewer.getCurrentPage();
-          const info = doc.getPageInfo(currentPageNum);
-          const rect = new Core.Math.Rect(0, 0, info.width, info.height)
-          const text = await doc.getTextByPageAndRect(currentPageNum, rect);
-          return text;
+      const getTextOnPage = async () => { 
+        const doc = documentViewer.getDocument(); 
+        if (doc) { 
+        const currentPageNum = documentViewer.getCurrentPage(); 
+        const info = doc.getPageInfo(currentPageNum); 
+        const rect = new Core.Math.Rect(0, 0, info.width, info.height) 
+        const text = await doc.getTextByPageAndRect(currentPageNum, rect); 
+        return text; 
+        } 
+        
+        //if no document is loaded then return an empty string 
+        return ""; 
         }
 
-        //if no document is loaded then return an empty string 
-        return "ZZZ";
-      }
-
-      const createPanel = () => {
+        const createPanel = () => { 
         //Add a new panel that contains the text                 
         instance.UI.addPanel(
-          {
-            dataElement: 'customPanel',
-            location: 'right',
-            // @ts-ignore comment.
-            render: () => <div>'{getTextOnPage}'</div>
-            //  render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
+          { 
+            dataElement: 'customPanel', 
+            location: 'right', 
+                 // @ts-ignore comment.
+                 render: () =><div>{getTextOnPage}</div>
+           // render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
           });
-      }
+        }
 
-      createPanel();
-      instance.UI.openElements(['customPanel']);
+        createPanel();
+
     });
   }, []);
 
-  console.log("BBB");
   return (
     <div className="App">
-      <div className="header">React sample1</div>
+      <div className="header">React sample</div>
       <div className="webviewer" ref={viewer}></div>
     </div>
   );
