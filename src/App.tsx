@@ -1,42 +1,44 @@
 import WebViewer from '@pdftron/webviewer';
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import './App.css';
 
-// class TextContentPanel extends React.Component {
-//   state = { text: '' };
-//   // Called after the component is mounted, similar to the initial effect in useEffect
-//   componentDidMount() {
-//     this.loadText();
-//          // @ts-ignore comment.
-//     this.props.documentViewer.addEventListener('pageNumberUpdated', async () => {
-//              // @ts-ignore comment.
-//       const text = await this.props.getTextOnPage();
-//       const txt2 = "Wibble " + text;
-//       this.setState({txt2});
-//     }
-//     );
-//   }
+class TextContentPanel extends React.Component {
+  state = { text: '' };
+  // Called after the component is mounted, similar to the initial effect in useEffect
+  componentDidMount() {
+    this.loadText();
+    console.log("CCC")
+         // @ts-ignore comment.
+    this.props.documentViewer.addEventListener('pageNumberUpdated', async () => {
+      console.log("Updated")
+             // @ts-ignore comment.
+      const text = await this.props.getTextOnPage();
+      const txt2 = "Wibble " + text;
+      this.setState({txt2});
+    }
+    );
+  }
 
-//   componentWillUnmount() {
-//          // @ts-ignore comment.
-//     this.props.documentViewer.removeEventListener('pageNumberUpdated', this.handlePageNumberUpdated);
-//   }
+  componentWillUnmount() {
+         // @ts-ignore comment.
+    this.props.documentViewer.removeEventListener('pageNumberUpdated', this.handlePageNumberUpdated);
+  }
 
-//   loadText = async () => {
-//          // @ts-ignore comment.
-//     const text = await this.props.getTextOnPage();
-//     this.setState({text});
-//   }
+  loadText = async () => {
+         // @ts-ignore comment.
+    const text = await this.props.getTextOnPage();
+    this.setState({text});
+  }
 
-//   render() {
+  render() {
 
-//     return (
-//       <div className='custom-panel'>
-//         {this.state.text}
-//       </div>
-//     );
-//   }
-// }
+    return (
+      <div className='custom-panel'>
+        {this.state.text}
+      </div>
+    );
+  }
+}
 
 function App() {
   const viewer = useRef<HTMLDivElement>(null);
@@ -45,7 +47,7 @@ function App() {
     // @ts-ignore comment.
     WebViewer(
       {
-        path: '/webviewer/lib',
+        path: '/lib',
         initialDoc: '/files/WebviewerDemoDoc.pdf',
         licenseKey: 'your_license_key',  // sign up to get a free trial key at https://dev.apryse.com
          
@@ -59,8 +61,11 @@ function App() {
 
 
       const getTextOnPage = async () => {
+        console.log("EEE");
+        console.log(documentViewer);
         const doc = documentViewer.getDocument();
         if (doc) {
+          console.log("DDD");
           const currentPageNum = documentViewer.getCurrentPage();
           const info = doc.getPageInfo(currentPageNum);
           const rect = new Core.Math.Rect(0, 0, info.width, info.height)
@@ -79,8 +84,8 @@ function App() {
             dataElement: 'customPanel',
             location: 'right',
             // @ts-ignore comment.
-            render: () => <div>'{getTextOnPage}'</div>
-            //  render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
+           // render: () => <div>'{getTextOnPage}'</div>
+              render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
           });
       }
 

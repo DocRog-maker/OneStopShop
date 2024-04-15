@@ -1,41 +1,62 @@
 import WebViewer from '@pdftron/webviewer';
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import './App.css';
 
-// class TextContentPanel extends React.Component {
-//   state = { text: '' };
-//   // Called after the component is mounted, similar to the initial effect in useEffect
-//   componentDidMount() {
-//     this.loadText();
-//          // @ts-ignore comment.
-//     this.props.documentViewer.addEventListener('pageNumberUpdated', async () => {
-//              // @ts-ignore comment.
-//       const text = await this.props.getTextOnPage();
-//       this.setState({text});
-//     }
-//     );
-//   }
+type TextContentPanelProps = {
+  // using `interface` is also ok
+  getTextOnPage: () => Promise<string>;
+  documentViewer: any
+};
 
-//   componentWillUnmount() {
-//          // @ts-ignore comment.
-//     this.props.documentViewer.removeEventListener('pageNumberUpdated', this.handlePageNumberUpdated);
-//   }
+class TextContentPanel extends React.Component<TextContentPanelProps> {
+  state = { text: '' };
+  // Called after the component is mounted, similar to the initial effect in useEffect
+  componentDidMount() {
+   // this.loadText();
+    
+    // // @ts-ignore comment.
+    // this.props.documentViewer.addEventListener('pageNumberUpdated', async () => {
+    //   console.log('F3')
+    //   const text = await this.props.getTextOnPage();
+    //   console.log(text)
+    //   this.setState({ text });
+    // });
 
-//   loadText = async () => {
-//          // @ts-ignore comment.
-//     const text = await this.props.getTextOnPage();
-//     this.setState({text});
-//   }
+    // this.props.documentViewer.addEventListener('pageNumberUpdated', this.loadText);
+    // this.props.documentViewer.addEventListener('documentLoaded', this.loadText);
+    this.props.documentViewer.addEventListener(['pageNumberUpdated','documentLoaded'], this.loadText);
+    
+    // @ts-ignore comment.
+    // this.props.documentViewer.addEventListener('documentLoaded', async () => {
+    //   console.log('F2')
+    //   const text = await this.props.getTextOnPage();
+    //   console.log(text)
+    //   this.setState({ text });
+    // });
+  }
 
-//   render() {
+  componentWillUnmount() {
+    // @ts-ignore comment.
+    // this.props.documentViewer.removeEventListener('pageNumberUpdated', this.handlePageNumberUpdated);
+    this.props.documentViewer.removeEventListener(['pageNumberUpdated'], this.loadText);
+  }
 
-//     return (
-//       <div className='custom-panel'>
-//         {this.state.text}
-//       </div>
-//     );
-//   }
-// }
+  loadText = async () => {
+    console.log('F1')
+    const text = await this.props.getTextOnPage();
+    console.log(text)
+    this.setState({ text });
+  }
+
+  render() {
+
+    return (
+      <div className='custom-panel'>
+        {this.state.text}
+      </div>
+    );
+  }
+}
 
 const App = () => {
   const viewer = useRef<HTMLDivElement>(null);
@@ -43,8 +64,8 @@ const App = () => {
   useEffect(() => {
     WebViewer(
       {
-        path: '/webviewer/lib',
-        initialDoc: '/files/PDFTRON_about.pdf',
+        path: '/lib',
+        initialDoc: '/files/WebviewerDemoDoc.pdf',
         licenseKey: 'your_license_key'  // sign up to get a free trial key at https://dev.apryse.com
       },
       viewer.current as HTMLDivElement,
@@ -52,35 +73,33 @@ const App = () => {
       const { Core } = instance;
       const { documentViewer } = instance.Core;
 
+      const getTextOnPage = async () => {
+        const doc = documentViewer.getDocument();
+        if (doc) {
+          const currentPageNum = documentViewer.getCurrentPage();
+          const info = doc.getPageInfo(currentPageNum);
+          const rect = new Core.Math.Rect(0, 0, info.width, info.height)
+          const text = await doc.getTextByPageAndRect(currentPageNum, rect);
+          return text;
+        }
 
-      const getTextOnPage = async () => { 
-        const doc = documentViewer.getDocument(); 
-        if (doc) { 
-        const currentPageNum = documentViewer.getCurrentPage(); 
-        const info = doc.getPageInfo(currentPageNum); 
-        const rect = new Core.Math.Rect(0, 0, info.width, info.height) 
-        const text = await doc.getTextByPageAndRect(currentPageNum, rect); 
-        return text; 
-        } 
-        
         //if no document is loaded then return an empty string 
-        return ""; 
-        }
+        return "No document";
+      }
 
-        const createPanel = () => { 
-        //Add a new panel that contains the text                 
+      const createPanel = () => {
+        //Add a new panel that contains the text
         instance.UI.addPanel(
-          { 
-            dataElement: 'customPanel', 
-            location: 'right', 
-                 // @ts-ignore comment.
-                 render: () =><div>{getTextOnPage}</div>
-           // render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
+          {
+            dataElement: 'customPanel',
+            location: 'right',
+            // @ts-ignore 
+            render: () => <TextContentPanel getTextOnPage={getTextOnPage} documentViewer={documentViewer} />,
           });
-        }
+      }
 
-        createPanel();
-
+      createPanel();
+      instance.UI.openElements(['customPanel']);
     });
   }, []);
 
