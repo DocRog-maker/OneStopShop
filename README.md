@@ -1,3 +1,5 @@
+Demo project that relates to videos and blogs for using WebViewer to create a DOCX tmaplate, populate it, allow users to annotate the PDF, then digitally sign the PDF.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
