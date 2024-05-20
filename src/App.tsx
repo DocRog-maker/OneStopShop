@@ -6,50 +6,72 @@ import './App.css';
 
 function App() {
   const viewer = useRef<HTMLDivElement>(null);
+  const licKey = '[licenseKey]]'
   // if using a class, equivalent of componentDidMount 
   useEffect(() => {
     // @ts-ignore comment.
     WebViewer(
       {
         path: '/lib',
-        licenseKey: 'demo:1691546275889:7c59401e03000000008d32a204e8ee933c71f5612baed9652518f1a03b',
-        //  initialDoc: 'https://pdftron.s3.amazonaws.com/downloads/pl/demo-annotated.pdf',
-     //   enableOfficeEditing: true,
+        licenseKey: licKey,
+        initialDoc: 'https://pdftron.s3.amazonaws.com/downloads/pl/demo-annotated.pdf',
+        enableOfficeEditing: true,
         fullAPI: true,
       },
       viewer.current as HTMLDivElement
     ).then(async (instance) => {
-      const { documentViewer, PDFNet } = instance.Core;
+      const { documentViewer, PDFNet, annotationManager } = instance.Core;
+      const { VerificationOptions } = instance.UI;
+
+      VerificationOptions.addTrustedCertificates(['/files/certificate.pem'])
+
       instance.UI.enableFeatures([instance.UI.Feature.FilePicker, instance.UI.Feature.ContentEdit]);
 
-
-      function getInfo() {
-        const doc = documentViewer.getDocument();
-        console.log(doc);
-        console.log('JJJ')
+      function openAsOffice() {
+        documentViewer.loadDocument('/files/empty.docx', { enableOfficeEditing: true })
       }
+
+      function loginAsAdmin() {
+        annotationManager.setCurrentUser('Justin');
+        annotationManager.promoteUserToAdmin()
+        const allAnnots = annotationManager.getAnnotationsList();
+        annotationManager.showAnnotations(allAnnots);
+      }
+
+      function loginAsUser() {
+        annotationManager.setCurrentUser('Sally');
+        annotationManager.demoteUserFromAdmin();
+        annotationManager.disableReadOnlyMode();
+        const allAnnots = annotationManager.getAnnotationsList();
+        annotationManager.showAnnotations(allAnnots);
+      }
+
+      // Log a user in as readonly - and hide Freehand and text highlight annotations
+      function loginAsReadonly() {
+        annotationManager.setCurrentUser('Brian');
+        annotationManager.enableReadOnlyMode();
+        const allAnnots = annotationManager.getAnnotationsList();
+        const hideList = allAnnots.filter(annot => {
+          console.log(annot)
+          return annot instanceof instance.Core.Annotations.FreeHandAnnotation ||
+            annot instanceof instance.Core.Annotations.TextHighlightAnnotation;
+        });
+
+        // @ts-ignore
+        annotationManager.hideAnnotations(hideList);
+      }
+
       async function addSignature() {
-        console.log('XXX')
-        console.log('A0');
         await PDFNet.initialize();
         const doc = await documentViewer.getDocument().getPDFDoc();
-        console.log('A1');
         // Run PDFNet methods with memory management
         await PDFNet.runWithCleanup(async () => {
           // runWithCleanup will auto unlock when complete
           doc.lock();
           // Add an StdSignatureHandler instance to PDFDoc, making sure to keep track of it using the ID returned.
-          const sigHandlerId = await doc.addStdSignatureHandlerFromURL('/files/newpkcs12.pfx', 'pass.example');
-
-
+          const sigHandlerId = await doc.addStdSignatureHandlerFromURL('/files/certificate.pfx', 'weak-password1');
           const approvalSigField = await doc.createDigitalSignatureField("newfield");
-
-          // // (OPTIONAL) Add more information to the signature dictionary.
-          //  await approvalSigField.setLocation("Vancouver, BC");
-          // await approvalSigField.setReason("Document approval.");
-          // await approvalSigField.setContactInfo("www.apryse.com");
-
-          const approvalSignatureWidget = await PDFNet.SignatureWidget.createWithDigitalSignatureField(doc, await PDFNet.Rect.init(400, 100, 600, 150), approvalSigField);
+          const approvalSignatureWidget = await PDFNet.SignatureWidget.createWithDigitalSignatureField(doc, await PDFNet.Rect.init(500, 20, 600, 100), approvalSigField);
 
           // // (OPTIONAL) Add an appearance to the signature field.
           const img = await PDFNet.Image.createFromURL(doc, 'https://cdn.iconscout.com/icon/free/png-256/free-signed-2653334-2202906.png');
@@ -61,124 +83,94 @@ function App() {
 
           // Prepare the signature and signature handler for signing.
           await approvalSigField.signOnNextSaveWithCustomHandler(sigHandlerId);
-
-
           // The actual approval signing will be done during the save operation.
           const buf = await doc.saveMemoryBuffer(0);
           const blob = new Blob([buf], { type: 'application/pdf' });
+
           //Save via any mechanism that you like - saveBlob creates a link, then clicks the link
           saveBlob(blob, 'signed_doc.pdf');
-          instance.UI.loadDocument(blob);
-        }, 'demo:1691546275889:7c59401e03000000008d32a204e8ee933c71f5612baed9652518f1a03b');
-
+          instance.UI.loadDocument(blob, { filename: 'signed_doc.pdf' });
+        }, licKey);
       }
-
 
       instance.UI.setHeaderItems(header => {
         header.push({
           type: 'actionButton',
-          img: '/kiwi.svg',
+          img: '/template.png',
+          title: 'Create template',
+          onClick: openAsOffice,
+        });
+      });
+
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/can.png',
+          title: 'Get Canadian data',
+          onClick: fillTemplateCan,
+        });
+      });
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/usa.png',
+          title: 'Get US data',
+          onClick: fillTemplateUsa,
+        });
+      });
+
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/sally.png',
+          title: 'Login as User',
+          onClick: loginAsUser,
+        });
+      });
+
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/justin.png',
+          title: 'Login as Admin',
+          onClick: loginAsAdmin,
+        });
+      });
+
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/brian.png',
+          title: 'Login as Readonly',
+          onClick: loginAsReadonly,
+        });
+      });
+
+      instance.UI.setHeaderItems(header => {
+        header.push({
+          type: 'actionButton',
+          img: '/approve.png',
+          title: 'Approve and Save',
           onClick: addSignature,
         });
       });
 
-      instance.UI.setHeaderItems(header => {
-        header.push({
-          type: 'actionButton',
-          img: '/gecko.png',
-          onClick: fillTemplate,
-        });
-      });
+      //The data returned form the world bank has been stored as static files. 
+      //While it is JSON, it's structure isn';'t how DocGen needs it, so tweak the structure
+      async function getJSONData(country: string) {
+        let t = '';
+        await fetch('/files/' + country + '_population.json')
+          .then((r) => r.text())
+          .then(text => {
+            t = text;
+          })
+        const j = JSON.parse(t)
+        const k = { 'lastupdated': j[0].lastupdated, 'country': j[1][0].countryiso3code, "years": j[1] };
 
-      instance.UI.setHeaderItems(header => {
-        header.push({
-          type: 'actionButton',
-          img: '/gecko2.png',
-          onClick: getInfo,
-        });
-      });
-      console.log('aaa');
-
-      let t = '';
-      await fetch('/files/cad_population.json')
-        .then((r) => r.text())
-        .then(text => {
-          t = text;
-        })
-      // console.log(t)
-      const j = JSON.parse(t)
-
-      console.log(j);
-
-      const k = { 'lastupdated': j[0].lastupdated, 'country': j[1][0].countryiso3code, "years": j[1] };
-      console.log(k);
-      //const k1 = JSON.stringify(k);
-      console.log('j');
-
-      // const j0= {"years":[{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2022","value":333287557,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2021","value":332031554,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2020","value":331511512,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2019","value":328329953,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2018","value":326838199,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2017","value":325122128,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2016","value":323071755,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2015","value":320738994,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2014","value":318386329,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2013","value":316059947,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2012","value":313877662,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2011","value":311583481,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2010","value":309327143,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2009","value":306771529,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2008","value":304093966,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2007","value":301231207,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2006","value":298379912,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2005","value":295516599,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2004","value":292805298,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2003","value":290107933,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2002","value":287625193,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2001","value":284968955,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2000","value":282162411,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1999","value":279040000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1998","value":275854000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1997","value":272657000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1996","value":269394000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1995","value":266278000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1994","value":263126000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1993","value":259919000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1992","value":256514000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1991","value":252981000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1990","value":249623000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1989","value":246819000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1988","value":244499000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1987","value":242289000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1986","value":240133000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1985","value":237924000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1984","value":235825000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1983","value":233792000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1982","value":231664000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1981","value":229466000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1980","value":227225000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1979","value":225055000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1978","value":222585000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1977","value":220239000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1976","value":218035000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1975","value":215973000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1974","value":213854000,"unit":"","obs_status":"","decimal":0}]}
-      // const j0z= {"years":[{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2023","value":null,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2022","value":333287557,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2021","value":332031554,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2020","value":331511512,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2019","value":328329953,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2018","value":326838199,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2017","value":325122128,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2016","value":323071755,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2015","value":320738994,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2014","value":318386329,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2013","value":316059947,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2012","value":313877662,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2011","value":311583481,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2010","value":309327143,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2009","value":306771529,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2008","value":304093966,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2007","value":301231207,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2006","value":298379912,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2005","value":295516599,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2004","value":292805298,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2003","value":290107933,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2002","value":287625193,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2001","value":284968955,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"2000","value":282162411,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1999","value":279040000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1998","value":275854000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1997","value":272657000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1996","value":269394000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1995","value":266278000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1994","value":263126000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1993","value":259919000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1992","value":256514000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1991","value":252981000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1990","value":249623000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1989","value":246819000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1988","value":244499000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1987","value":242289000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1986","value":240133000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1985","value":237924000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1984","value":235825000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1983","value":233792000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1982","value":231664000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1981","value":229466000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1980","value":227225000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1979","value":225055000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1978","value":222585000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1977","value":220239000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1976","value":218035000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1975","value":215973000,"unit":"","obs_status":"","decimal":0},{"indicator":{"id":"SP.POP.TOTL","value":"Population, total"},"country":{"id":"US","value":"United States"},"countryiso3code":"USA","date":"1974","value":213854000,"unit":"","obs_status":"","decimal":0}]}
-      //    const j2=  {"years":[{"countryiso3code":"USA","date":"2022","value":'333287557'},{"countryiso3code":"USA","date":"2021","value":'332031554'},{"countryiso3code":"USA","date":"2020","value":'331511512'},{"countryiso3code":"USA","date":"2019","value":'328329953'}]};
-
-      // const j1= {"page":1,"pages":2,"per_page":50,"total":64,"sourceid":"2","lastupdated":"2024-03-28"}
-
-      // const f =  new File(fileName:"/files/usa_population.json");
-      // const reader = new FileReader();
-
-      function saveBlob(blob: Blob, fileName: string) {
-        var a = document.createElement("a");
-        document.body.appendChild(a);
-        //  a.style = "display: none";
-
-        var url = window.URL.createObjectURL(blob);
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        window.URL.revokeObjectURL(url);
+        return k
       };
-      //       // const j = reader.readAsText('/files/usa_population.json')\
-      //       documentViewer.addEventListener('documentLoadedZZZ', async () => {
-      //         console.log('A0');
-      //         await PDFNet.initialize();
-      //         const doc = await documentViewer.getDocument().getPDFDoc();
-      //     console.log('A1');
-      //         // Run PDFNet methods with memory management
-      //         await PDFNet.runWithCleanup(async () => {
-      //             // runWithCleanup will auto unlock when complete
-      //           doc.lock();
-      //           // Add an StdSignatureHandler instance to PDFDoc, making sure to keep track of it using the ID returned.
-      //           const sigHandlerId = await doc.addStdSignatureHandlerFromURL('/files/newpkcs12.pfx', 'pass.example');
 
-
-      //       const approvalSigField = await doc.createDigitalSignatureField("newfield");
-
-      //           // // (OPTIONAL) Add more information to the signature dictionary.
-      //          //  await approvalSigField.setLocation("Vancouver, BC");
-      //           // await approvalSigField.setReason("Document approval.");
-      //           // await approvalSigField.setContactInfo("www.apryse.com");
-
-      //           const approvalSignatureWidget = await PDFNet.SignatureWidget.createWithDigitalSignatureField(doc, await PDFNet.Rect.init(400, 100, 600, 150), approvalSigField);
-
-      //           // // (OPTIONAL) Add an appearance to the signature field.
-      //           const img = await PDFNet.Image.createFromURL(doc, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTWxmJAnpUp0HOruTptDma_939-fQDnzMzgbzmqs6dZuw&s');
-      //           await approvalSignatureWidget.createSignatureAppearance(img);
-
-      //           //We will need to get the first page so that we can add an approval signature field to it
-      //           const page1 = await doc.getPage(1);
-      //            page1.annotPushBack(approvalSignatureWidget);
-
-      //           // Prepare the signature and signature handler for signing.
-      //           await approvalSigField.signOnNextSaveWithCustomHandler(sigHandlerId);
-
-
-      //           // The actual approval signing will be done during the save operation.
-      //           const buf = await doc.saveMemoryBuffer(0);
-      //           const blob = new Blob([buf], { type: 'application/pdf' });
-      //           //Save via any mechanism that you like - saveBlob creates a link, then clicks the link
-      //           saveBlob(blob,'signed_doc.pdf');
-      // instance.UI.loadDocument(blob);
-      //         }, 'demo:1691546275889:7c59401e03000000008d32a204e8ee933c71f5612baed9652518f1a03b');
-
-      //       });
+      //Template filling requires json to only contain text values, so replace any that are not.
       function replacer(key: string, value: object) {
         // Filtering out properties
         // @ts-ignore
@@ -190,223 +182,51 @@ function App() {
           return value;
         }
         return 'null'
-        // if (typeof value === "number") {
-        //         // @ts-ignore
-        //   return value.toString();
-        // }
-        // return value.toString();;
       }
 
-      async function fillTemplate() {
-        console.log('XXX')
-         const docStart = documentViewer.getDocument();
-         console.log(docStart)
-        // const ds = await docStart.getPDFDoc();
-      //  console.log(ds)
-        //const buf= docStart.
-      const doc = await instance.Core.createDocument('/files/'+ docStart.getFilename(), { extension: "docx", officeOptions: { doTemplatePrep: true } })
-     //   const doc = await instance.Core.createDocument(ds, { extension: "docx", officeOptions: { doTemplatePrep: true } })
 
+      //This is one way to save a document. Others exist.
+      function saveBlob(blob: Blob, fileName: string) {
+        var a = document.createElement("a");
+        document.body.appendChild(a);
+        var url = window.URL.createObjectURL(blob);
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      };
+
+      async function fillTemplateUsa() {
+        await fillTemplate('us');
+      }
+
+      async function fillTemplateCan() {
+        await fillTemplate('cn');
+      }
+      async function fillTemplate(countrycode: string) {
+        const docStart = documentViewer.getDocument();
+        var s = await docStart.getFileData()
+        const k = await getJSONData(countrycode);
         const js = JSON.stringify(k, replacer)
-        console.log(js);
+        const doc = await instance.Core.createDocument(s, { extension: "docx", officeOptions: { doTemplatePrep: true } });
         await doc.applyTemplateValues(JSON.parse(js));
 
-        console.log('bbb');
-        const data = await doc.getFileData({ downloadType: "pdf", finishedWithDocument: true });
-        console.log(data);
-        console.log('data');
-        instance.Core.documentViewer.loadDocument(data, { extension: 'pdf' });
-
-
-        console.log('A0');
-
+        // The output of DocGen can be a PDF or a DOCX file - change the value of createPDF to change the type.
+        const createPDF = true;
+        if (createPDF) {
+          const data = await doc.getFileData({ downloadType: "pdf", finishedWithDocument: true });
+          instance.Core.documentViewer.loadDocument(data, { extension: 'pdf' });
+        }
+        else {
+          //Create a docx output
+          const data = await doc.getFileData({ downloadType: "templateFilledOffice", finishedWithDocument: true });
+          const file = new File([data], "filled.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+          await instance.Core.documentViewer.loadDocument(file, { extension: 'docx', enableOfficeEditing: true });
+        }
       }
-      // const js = JSON.stringify(k, replacer)
-      // console.log(js); 
-      // await doc.applyTemplateValues(JSON.parse(js));
-
-      // console.log('bbb'); 
-      //   const data = await doc.getFileData({ downloadType: "templateFilledOffice", finishedWithDocument: true });
-      //   // console.log(data);
-      //   // console.log('data');
-      //   // instance.Core.documentViewer.loadDocument(data, { extension: 'docx' });
-
-      //        const file = new File([data], "filled.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-      // await  instance.Core.documentViewer.loadDocument(file, { extension: 'docx', enableOfficeEditing: true  });
-
-
-      //await instance.Core.documentViewer.loadDocument('/files/US_popn.docx', {extension:"docx", enableOfficeEditing: true, officeOptions: {doTemplatePrep: true, templateValues: { lastupdated: '1-2-3', }}})
-
-      //  console.log('DDD');
-      // @ts-ignore
-      //   instance.UI.disableFeatures([instance.UI.Feature.ThumbnailMultiselect]);
-      //   instance.UI.disableFeatures([instance.UI.Feature.ThumbnailReordering, instance.UI.Feature.ThumbnailMerging]);
-
-      //   instance.UI.disableElements(['pageManipulationOverlayButton', 'pageManipulationOverlay', 'thumbDelete']);
     });
   }, []);
-  //  instance.UI.enableElements(['contentEditButton']);
-  //   instance.UI.disableElements(['ThumbnailMultiselect']);
-  //   'MultipleViewerMerging',
-  // ]);
-  // const {Core} = instance;
-  // const{ annotationManager} = Core;
 
-  // const selectedAnnotation = annotationManager.getSelectedAnnotations()[0];
-
-  // console.log('AAAAA');
-  // const { Core } = instance;
-  // const { documentViewer } = Core;
-
-  // //Optional: Use this to preload the worker if you know that the user will edit the PDF
-  //  const contentEditManager = new ContentEditManager(documentViewer);
-  //  Core.ContentEdit.preloadWorker(contentEditManager);
-
-  // const contentEditTool = documentViewer.getTool(Core.Tools.ToolNames.CONTENT_EDIT);
-  // documentViewer.setToolMode(contentEditTool);
-  // const selectedAnnotations = annotationManager.getSelectedAnnotations();
-  // console.log(selectedAnnotations);
-  // console.log('selectedAnnotation');
-
-  // instance.UI.disableElements(['outlinesPanelButton']);
-  // if (selectedAnnotation && selectedAnnotation.isContentEditPlaceholder()) {
-  //   const r: Core.Annotations.RectangleAnnotation = new Core.Annotations.RectangleAnnotation(selectedAnnotation);
-  //   const content = await Core.ContentEdit.getDocumentContent(r);
-
-  //   // pass content to library that can display rich text, for example Quill
-
-  // }
-
-
-  // documentViewer.addEventListener('annotationsLoaded', async () => {
-  //   const annots = annotationManager.getAnnotationsList()
-  //   console.log(annots);
-  //   console.log('annots');
-
-  //   const annots1 = annots.filter(annot => annot.isContentEditPlaceholder());
-  //   console.log(annots1);
-  //   console.log('annots1');
-  //   // if (annots1.length>0)
-  //   //   {
-  //   //     // @ts-ignore 
-  //   //    const content = await Core.ContentEdit.getDocumentContent(annots1[0]);
-  //   //    console.log(content);
-  //   //   }
-  //   const annotsSel = annotationManager.getSelectedAnnotations();
-  //   console.log(annotsSel);
-  //   console.log('annotsSel');
-
-  //   const annotsSwl1 = annotsSel.filter(annot => annot.isContentEditPlaceholder());
-  //   console.log(annotsSwl1);
-  //   console.log('annotsSwl1');
-  // });
-  // annotationManager.addEventListener('annotationChanged', async (annotations, action) => {
-  //     // @ts-ignore 
-  //   annotations.forEach(async (annot) => {
-
-  //     console.log( annot.getAssociatedLinks())
-  //     console.log ('type')
-  //     if (annot.isContentEditPlaceholder()) {
-
-  //       const content = await Core.ContentEdit.getDocumentContent(annot);
-
-  //     //  console.log(content);
-  //       console.log ('Valid')
-  //     }
-  //     else{
-  //       console.log(annot)
-  //       console.log ('Not valid')
-  //     }
-
-  //   });
-  //  if (action === 'add') {
-  // @ts-ignore 
-  // const editAnnotations = annotations.filter(annot => annot.isHTMLAnnotation());
-  // console.log(editAnnotations);
-  // console.log ('AAAAA')
-  //           const editAnnotations = annotations.filter(annot => annot.isContentEditPlaceholder());
-  //           if (editAnnotations.length > 0) {
-  //             console.log(editAnnotations);
-  //             console.log ('AAAAA')
-  //             // @ts-ignore 
-  //            editAnnotations.forEach(async annot => {
-  //               const content = await Core.ContentEdit.getDocumentContent(annot);
-  //              console.log(content)
-  //              console.log(annot)
-  //              console.log('content')
-  //            })
-  //            // annotationManager.deleteAnnotation(editAnnotations[1]);
-  //           //  console.log(editAnnotations[0].X);
-  //           //  editAnnotations[0].X = 200;
-
-  // //annotationManager.trigger(Core.AnnotationManager.Events.ANNOTATION_CHANGED, ['modify', [editAnnotations[0]], {}]);
-  //           }
-  //    const newContent = '<p><span style="font-family: SourceSansProSemi;font-weight: bold;font-size: 30px;color: #444444;"><strong>Important Factors when Choosing a PDF Library</strong></span></p>';
-  //   await Core.ContentEdit.updateDocumentContent(editAnnotations[0], newContent);
-  // }
-  //  });
-  // documentViewer.addEventListener('pageNumberUpdated', () => {
-  //   const annots = annotationManager.getAnnotationsList()
-  //   console.log(annots);
-  //   console.log('annotsZ');
-
-  //   const annots1 = annots.filter(annot => annot.isContentEditPlaceholder());
-  //   console.log(annots1);
-  //   console.log('annots1Z');
-  //   annots1.forEach( async annot => {
-  //     // @ts-ignore 
-  //     const content = await Core.ContentEdit.getDocumentContent(annot);
-  //       console.log(content);
-  //     // if (annots1.length>0)
-  //   //   {
-  //   //     // @ts-ignore 
-  //   //    const content = await Core.ContentEdit.getDocumentContent(annots1[0]);
-  //   //    console.log(content);
-  //   //   }
-
-  //   const annotsSel = annotationManager.getSelectedAnnotations();
-  //   console.log(annotsSel);
-  //   console.log('annotsSelZ');
-
-  //   const annotsSwl1 = annotsSel.filter(annot => annot.isContentEditPlaceholder());
-  //   console.log(annotsSwl1);
-  //   console.log('annotsSwl1Z');
-  // });
-  // documentViewer.addEventListener('annotationsLoaded', () => {
-  //   //const annots = annotationManager.getAnnotationsList().filter(annot => annot instanceof Core.Annotations.RectangleAnnotation);;
-  //   //const annots = annotationManager.getAnnotationsList().filter(annot => annot.ToolName="AnnotationCreateRectangle");
-  //   //const annots = annotationManager.getAnnotationsList().map(annot => annot.getContentEditAnnotationId);
-  //   const annots = annotationManager.getAnnotationsList()
-  //   console.log(annots);
-  //   console.log('annots');
-
-  //   const annots1 = annotationManager.getAnnotationsList().filter(annot => annot.isContentEditPlaceholder());
-  //   console.log(annots1);
-  //   console.log('annots1');
-  //   // const annots = annotationManager.getAnnotationsList().map(annot => annot.type;
-  //   // annotationManager.selectAnnotations(annots);
-  // });
-  //       const selectedAnnotation = annotationManager.getSelectedAnnotations()[0];
-  //       console.log(selectedAnnotation);
-  // if (selectedAnnotation && selectedAnnotation.isContentEditPlaceholder()) {
-  //  const r: Core.Annotations.RectangleAnnotation = new Core.Annotations.RectangleAnnotation(selectedAnnotation);
-  //   const content = await Core.ContentEdit.getDocumentContent(selectedAnnotation);
-  // console.log(content);
-  // console.log('^content^');
-  // pass content to library that can display rich text, for example Quill
-
-  // }
-  // else{
-  //   console.log('No annotation');
-  // }
-
-  // later after the content has been updated this will update it on the page
-  //await Core.ContentEdit.updateDocumentContent(annotation, newContent);
-
-  //   });
-  // }, []);
-
-  console.log("BBB1");
   return (
     <div className="App">
       <div className="webviewer" ref={viewer}></div>
